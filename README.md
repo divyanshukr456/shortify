@@ -9,7 +9,7 @@ Shortify is a lightweight URL shortener built with Node.js, Express, and EJS. Cr
 - View, search, and manage links from the dashboard.
 - Track total clicks and view click activity over the last seven days.
 - Redirect visitors from a short link to its original URL.
-- Store link data locally in `files/urls.json`.
+- Store links and click analytics persistently in Neon Postgres.
 
 ## Requirements
 
@@ -18,19 +18,29 @@ Shortify is a lightweight URL shortener built with Node.js, Express, and EJS. Cr
 
 ## Getting Started
 
-1. Install the dependencies:
+1. Create a Neon Postgres project and copy its connection string from the Neon dashboard's **Connect** dialog.
+
+2. Set the connection string in the `DATABASE_URL` environment variable. In Vercel, add `DATABASE_URL` under **Project Settings → Environment Variables** for each environment you deploy, then redeploy. Keep the connection string private.
+
+   For local development in PowerShell:
+
+   ```powershell
+   $env:DATABASE_URL = "your-neon-connection-string"
+   ```
+
+3. Install the dependencies:
 
    ```bash
    npm install
    ```
 
-2. Start the server:
+4. Start the server:
 
    ```bash
    node server.js
    ```
 
-3. Open [http://localhost:3000](http://localhost:3000) in your browser.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 The server uses port `3000` by default. Set the `PORT` environment variable to use a different port.
 
@@ -86,4 +96,6 @@ Redirects to the original URL and records the click. Unknown short codes return 
 
 ## Data Storage
 
-Link records are stored in `files/urls.json`. The server creates the `files` directory when saving data if it does not exist. On read-only serverless platforms such as Vercel, filesystem writes may be skipped and link data will not persist; use a persistent database for production serverless deployments. Back up this file if you need to preserve local link data.
+Neon Postgres is the source of truth for links and click analytics. The app creates its database tables automatically on the first request. If `files/urls.json` is available on that first request, its existing links are imported once into Neon. Requests that require the database return an error if `DATABASE_URL` is not configured.
+
+To inspect saved records, use the Neon dashboard's **SQL Editor**, or visit your deployed app's `/api/urls` endpoint.

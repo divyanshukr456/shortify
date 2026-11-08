@@ -3,6 +3,7 @@ const expressLayouts = require('express-ejs-layouts');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { neon } = require('@neondatabase/serverless');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,8 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 const filesDir = path.join(__dirname, 'files');
 const dbFilePath = path.join(filesDir, 'urls.json');
+let sql;
+let schemaReady;
 
 // ==========================================
 // 2. CUSTOM BACKEND MIDDLEWARE
@@ -59,28 +62,94 @@ const validateUrlInput = (req, res, next) => {
     next();
 };
 
-// Safe database helpers for serverless environments
-function getUrlDatabase() {
-    try {
-        if (!fs.existsSync(dbFilePath)) {
-            return {};
-        }
-        return JSON.parse(fs.readFileSync(dbFilePath, 'utf8'));
-    } catch (err) {
-        return {};
+function getSql() {
+    if (!process.env.DATABASE_URL) {
+        const error = new Error('DATABASE_URL is not configured. Add your Neon connection string to the deployment environment.');
+        error.status = 503;
+        throw error;
     }
+
+    if (!sql) {
+        sql = neon(process.env.DATABASE_URL);
+    }
+
+    return sql;
 }
 
-function saveUrlDatabase(db) {
-    try {
-        if (!fs.existsSync(filesDir)) {
-            fs.mkdirSync(filesDir, { recursive: true });
-        }
-        fs.writeFileSync(dbFilePath, JSON.stringify(db, null, 2));
-    } catch (err) {
-        // Vercel read-only filesystem fallback warning
-        console.warn('Note: Filesystem write skipped due to serverless read-only constraints.');
+function toIsoString(value, fallback = null) {
+    if (!value) return fallback;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? fallback : date.toISOString();
+}
+
+async function initializeDatabase() {
+    if (!schemaReady) {
+        schemaReady = (async () => {
+            const db = getSql();
+            await db`
+                CREATE TABLE IF NOT EXISTS shortify_urls (
+                    short_code TEXT PRIMARY KEY,
+                    long_url TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    clicks INTEGER NOT NULL DEFAULT 0,
+                    last_clicked TIMESTAMPTZ,
+                    first_clicked TIMESTAMPTZ,
+                    click_history JSONB NOT NULL DEFAULT '[]'::jsonb
+                )
+            `;
+            await db`
+                CREATE TABLE IF NOT EXISTS shortify_migrations (
+                    name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            `;
+
+            const [migration] = await db`
+                SELECT name FROM shortify_migrations WHERE name = 'legacy_urls_json'
+            `;
+            if (migration) return;
+
+            if (fs.existsSync(dbFilePath)) {
+                const legacyData = JSON.parse(fs.readFileSync(dbFilePath, 'utf8'));
+                if (!legacyData || typeof legacyData !== 'object' || Array.isArray(legacyData)) {
+                    throw new Error('Legacy URL database must contain a JSON object.');
+                }
+
+                for (const [shortCode, link] of Object.entries(legacyData)) {
+                    if (!link || typeof link !== 'object') continue;
+                    const longUrl = link.longUrl || link.originalUrl;
+                    if (typeof longUrl !== 'string' || !longUrl) continue;
+
+                    const createdAt = toIsoString(link.createdAt, new Date().toISOString());
+                    const firstClicked = toIsoString(link.firstClicked);
+                    const lastClicked = toIsoString(link.lastClicked);
+                    const clicks = Number.isSafeInteger(link.clicks) && link.clicks >= 0 ? link.clicks : 0;
+                    const clickHistory = Array.isArray(link.clickHistory)
+                        ? link.clickHistory.filter(timestamp => typeof timestamp === 'string' && Number.isFinite(Date.parse(timestamp)))
+                        : [];
+
+                    await db`
+                        INSERT INTO shortify_urls
+                            (short_code, long_url, created_at, clicks, first_clicked, last_clicked, click_history)
+                        VALUES
+                            (${shortCode}, ${longUrl}, ${createdAt}, ${clicks}, ${firstClicked}, ${lastClicked}, ${JSON.stringify(clickHistory)}::jsonb)
+                        ON CONFLICT (short_code) DO NOTHING
+                    `;
+                }
+
+                await db`
+                    INSERT INTO shortify_migrations (name)
+                    VALUES ('legacy_urls_json')
+                    ON CONFLICT (name) DO NOTHING
+                `;
+            }
+        })().catch(error => {
+            schemaReady = null;
+            throw error;
+        });
     }
+
+    await schemaReady;
 }
 
 // ==========================================
@@ -112,101 +181,140 @@ app.get('/about', (req, res) => {
 // ==========================================
 
 // POST: Create short URL
-app.post('/api/urls', validateUrlInput, (req, res) => {
+app.post('/api/urls', validateUrlInput, async (req, res) => {
     const longUrl = req.validatedUrl;
-    const db = getUrlDatabase();
+    await initializeDatabase();
+    const db = getSql();
+    const [existingLink] = await db`
+        SELECT short_code AS "shortCode", created_at AS "createdAt", clicks
+        FROM shortify_urls
+        WHERE long_url = ${longUrl}
+        LIMIT 1
+    `;
 
-    // Check if URL already exists
-    let shortCode = Object.keys(db).find(key => db[key].longUrl === longUrl || db[key].originalUrl === longUrl);
-    const isNew = !shortCode;
+    let link = existingLink;
+    let isNew = false;
+    if (!link) {
+        isNew = true;
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const shortCode = crypto.randomBytes(3).toString('hex');
+            const [insertedLink] = await db`
+                INSERT INTO shortify_urls (short_code, long_url)
+                VALUES (${shortCode}, ${longUrl})
+                ON CONFLICT (short_code) DO NOTHING
+                RETURNING short_code AS "shortCode", created_at AS "createdAt", clicks
+            `;
+            if (insertedLink) {
+                link = insertedLink;
+                break;
+            }
+        }
 
-    if (!shortCode) {
-        do {
-            shortCode = crypto.randomBytes(3).toString('hex');
-        } while (Object.prototype.hasOwnProperty.call(db, shortCode));
-
-        db[shortCode] = {
-            shortCode: shortCode,
-            longUrl: longUrl,
-            originalUrl: longUrl,
-            createdAt: new Date().toISOString(),
-            clicks: 0,
-            lastClicked: null,
-            firstClicked: null,
-            clickHistory: []
-        };
-        saveUrlDatabase(db);
+        if (!link) {
+            throw new Error('Could not generate a unique short code. Please try again.');
+        }
     }
 
-    const shortUrl = `${req.protocol}://${req.get('host')}/${shortCode}`;
+    const shortUrl = `${req.protocol}://${req.get('host')}/${link.shortCode}`;
     res.status(isNew ? 201 : 200).json({
-        shortCode,
+        shortCode: link.shortCode,
         shortUrl,
         originalUrl: longUrl,
-        createdAt: db[shortCode].createdAt,
-        clicks: db[shortCode].clicks
+        createdAt: toIsoString(link.createdAt),
+        clicks: link.clicks
     });
 });
 
 // GET: Retrieve all shortened URLs
-app.get('/api/urls', (req, res) => {
-    const db = getUrlDatabase();
-    // Return as an array for easy frontend iteration
-    const linksArray = Object.keys(db).map(key => ({
-        shortCode: key,
-        ...db[key]
-    }));
-    res.json(linksArray);
+app.get('/api/urls', async (req, res) => {
+    await initializeDatabase();
+    const db = getSql();
+    const links = await db`
+        SELECT
+            short_code AS "shortCode",
+            long_url AS "longUrl",
+            created_at AS "createdAt",
+            clicks,
+            last_clicked AS "lastClicked",
+            first_clicked AS "firstClicked",
+            click_history AS "clickHistory"
+        FROM shortify_urls
+        ORDER BY created_at DESC
+    `;
+    res.json(links.map(link => ({
+        ...link,
+        originalUrl: link.longUrl,
+        createdAt: toIsoString(link.createdAt),
+        lastClicked: toIsoString(link.lastClicked),
+        firstClicked: toIsoString(link.firstClicked),
+        clickHistory: Array.isArray(link.clickHistory) ? link.clickHistory : []
+    })));
 });
 
 // GET: Retrieve stats for an individual link
-app.get('/api/urls/:shortCode/stats', (req, res) => {
+app.get('/api/urls/:shortCode/stats', async (req, res) => {
     const { shortCode } = req.params;
-    const db = getUrlDatabase();
+    await initializeDatabase();
+    const db = getSql();
+    const [link] = await db`
+        SELECT
+            short_code AS "shortCode",
+            long_url AS "longUrl",
+            created_at AS "createdAt",
+            clicks,
+            last_clicked AS "lastClicked",
+            first_clicked AS "firstClicked",
+            click_history AS "clickHistory"
+        FROM shortify_urls
+        WHERE short_code = ${shortCode}
+    `;
 
-    if (db[shortCode]) {
-        const now = new Date();
-        const labels = Array.from({ length: 7 }, (_, index) => {
-            const date = new Date(now);
-            date.setUTCDate(date.getUTCDate() - (6 - index));
-            return date.toISOString().slice(0, 10);
-        });
-        const dailyCounts = Object.fromEntries(labels.map(label => [label, 0]));
-        const clickHistory = Array.isArray(db[shortCode].clickHistory) ? db[shortCode].clickHistory : [];
-        clickHistory.forEach(timestamp => {
-            const time = Date.parse(timestamp);
-            if (!Number.isFinite(time)) return;
-            const label = new Date(time).toISOString().slice(0, 10);
-            if (Object.prototype.hasOwnProperty.call(dailyCounts, label)) {
-                dailyCounts[label] += 1;
-            }
-        });
-
-        return res.json({
-            shortCode,
-            longUrl: db[shortCode].longUrl || db[shortCode].originalUrl,
-            createdAt: db[shortCode].createdAt,
-            clicks: db[shortCode].clicks,
-            lastClicked: db[shortCode].lastClicked || null,
-            firstClicked: db[shortCode].firstClicked || null,
-            dailyClicks: {
-                labels,
-                data: labels.map(label => dailyCounts[label])
-            }
-        });
+    if (!link) {
+        return res.status(404).json({ message: 'Short link record not found.' });
     }
 
-    res.status(404).json({ message: 'Short link record not found.' });
+    const now = new Date();
+    const labels = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(now);
+        date.setUTCDate(date.getUTCDate() - (6 - index));
+        return date.toISOString().slice(0, 10);
+    });
+    const dailyCounts = Object.fromEntries(labels.map(label => [label, 0]));
+    const clickHistory = Array.isArray(link.clickHistory) ? link.clickHistory : [];
+    clickHistory.forEach(timestamp => {
+        const time = Date.parse(timestamp);
+        if (!Number.isFinite(time)) return;
+        const label = new Date(time).toISOString().slice(0, 10);
+        if (Object.prototype.hasOwnProperty.call(dailyCounts, label)) {
+            dailyCounts[label] += 1;
+        }
+    });
+
+    res.json({
+        shortCode,
+        longUrl: link.longUrl,
+        createdAt: toIsoString(link.createdAt),
+        clicks: link.clicks,
+        lastClicked: toIsoString(link.lastClicked),
+        firstClicked: toIsoString(link.firstClicked),
+        dailyClicks: {
+            labels,
+            data: labels.map(label => dailyCounts[label])
+        }
+    });
 });
 
 // DELETE: Remove a short link
-app.delete('/api/urls/:shortCode', (req, res) => {
+app.delete('/api/urls/:shortCode', async (req, res) => {
     const { shortCode } = req.params;
-    const db = getUrlDatabase();
-
-    if (db[shortCode]) {
-        delete db[shortCode];
-        saveUrlDatabase(db);
+    await initializeDatabase();
+    const db = getSql();
+    const deletedLinks = await db`
+        DELETE FROM shortify_urls
+        WHERE short_code = ${shortCode}
+        RETURNING short_code
+    `;
+    if (deletedLinks.length > 0) {
         return res.json({ message: 'Link successfully deleted.' });
     }
 
@@ -216,28 +324,27 @@ app.delete('/api/urls/:shortCode', (req, res) => {
 // ==========================================
 // 5. REDIRECTION DYNAMIC ROUTE
 // ==========================================
-app.get('/:shortCode', (req, res) => {
+app.get('/:shortCode', async (req, res) => {
     const { shortCode } = req.params;
-    const db = getUrlDatabase();
+    await initializeDatabase();
+    const db = getSql();
+    const [link] = await db`
+        UPDATE shortify_urls
+        SET
+            clicks = clicks + 1,
+            first_clicked = COALESCE(first_clicked, NOW()),
+            last_clicked = NOW(),
+            click_history = (
+                SELECT COALESCE(jsonb_agg(history.timestamp), '[]'::jsonb)
+                FROM jsonb_array_elements_text(shortify_urls.click_history) AS history(timestamp)
+                WHERE history.timestamp::timestamptz >= NOW() - INTERVAL '7 days'
+            ) || jsonb_build_array(to_jsonb(NOW()::text))
+        WHERE short_code = ${shortCode}
+        RETURNING long_url AS "longUrl"
+    `;
 
-    if (db[shortCode]) {
-        const now = new Date();
-        const clickedAt = now.toISOString();
-        const link = db[shortCode];
-        link.clicks = Number.isSafeInteger(link.clicks) && link.clicks >= 0 ? link.clicks + 1 : 1;
-        link.firstClicked = link.firstClicked || clickedAt;
-        link.lastClicked = clickedAt;
-        link.clickHistory = Array.isArray(link.clickHistory) ? link.clickHistory : [];
-        const cutoff = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-        link.clickHistory = link.clickHistory.filter(timestamp => {
-            const time = Date.parse(timestamp);
-            return Number.isFinite(time) && time >= cutoff;
-        });
-        link.clickHistory.push(clickedAt);
-        saveUrlDatabase(db);
-        
-        const targetUrl = link.longUrl || link.originalUrl;
-        return res.redirect(targetUrl);
+    if (link) {
+        return res.redirect(link.longUrl);
     }
 
     res.status(404).send(`
@@ -253,20 +360,28 @@ app.get('/:shortCode', (req, res) => {
 app.use((err, req, res, next) => {
     console.error('Request failed:', err);
     if (res.headersSent) return next(err);
-    const statusCode = Number.isInteger(err.status) && err.status >= 400 && err.status < 500
+    const statusCode = Number.isInteger(err.status) && err.status >= 400 && err.status < 600
         ? err.status
         : 500;
     if (req.path.startsWith('/api/')) {
         return res.status(statusCode).json({
-            message: statusCode < 500 ? 'Invalid request.' : 'An internal server error occurred.'
+            message: statusCode === 503
+                ? err.message
+                : statusCode < 500 ? 'Invalid request.' : 'An internal server error occurred.'
         });
     }
-    res.status(statusCode).send(statusCode < 500 ? 'Invalid request.' : 'An internal server error occurred.');
+    res.status(statusCode).send(statusCode === 503
+        ? err.message
+        : statusCode < 500 ? 'Invalid request.' : 'An internal server error occurred.');
 });
 
 // ==========================================
 // 6. INITIALIZE SERVER
 // ==========================================
-app.listen(PORT, () => {
-    console.log(`> Shortify server running live on port ${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`> Shortify server running live on port ${PORT}`);
+    });
+}
+
+module.exports = app;
