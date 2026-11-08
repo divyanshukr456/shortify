@@ -86,4 +86,4 @@ Redirects to the original URL and records the click. Unknown short codes return 
 
 ## Data Storage
 
-Link records are stored in `files/urls.json`. The server creates the `files` directory if it does not exist. Back up this file if you need to preserve link data.
+Link records are stored in `files/urls.json`. The server creates the `files` directory when saving data if it does not exist. On read-only serverless platforms such as Vercel, filesystem writes may be skipped and link data will not persist; use a persistent database for production serverless deployments. Back up this file if you need to preserve local link data.

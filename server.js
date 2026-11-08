@@ -18,11 +18,7 @@ app.set('layout', 'layout/main');
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Ensure 'files' directory exists for JSON storage
 const filesDir = path.join(__dirname, 'files');
-if (!fs.existsSync(filesDir)) {
-    fs.mkdirSync(filesDir, { recursive: true });
-}
 const dbFilePath = path.join(filesDir, 'urls.json');
 
 // ==========================================
@@ -63,26 +59,28 @@ const validateUrlInput = (req, res, next) => {
     next();
 };
 
-// Helper functions for JSON database management
+// Safe database helpers for serverless environments
 function getUrlDatabase() {
-    if (!fs.existsSync(dbFilePath)) {
-        fs.writeFileSync(dbFilePath, JSON.stringify({}, null, 2));
-        return {};
-    }
     try {
-        const db = JSON.parse(fs.readFileSync(dbFilePath, 'utf8'));
-        if (!db || typeof db !== 'object' || Array.isArray(db)) {
-            throw new Error('URL database must contain a JSON object.');
+        if (!fs.existsSync(dbFilePath)) {
+            return {};
         }
-        return db;
+        return JSON.parse(fs.readFileSync(dbFilePath, 'utf8'));
     } catch (err) {
-        console.error('Error reading database file:', err);
-        throw err;
+        return {};
     }
 }
 
 function saveUrlDatabase(db) {
-    fs.writeFileSync(dbFilePath, JSON.stringify(db, null, 2));
+    try {
+        if (!fs.existsSync(filesDir)) {
+            fs.mkdirSync(filesDir, { recursive: true });
+        }
+        fs.writeFileSync(dbFilePath, JSON.stringify(db, null, 2));
+    } catch (err) {
+        // Vercel read-only filesystem fallback warning
+        console.warn('Note: Filesystem write skipped due to serverless read-only constraints.');
+    }
 }
 
 // ==========================================
