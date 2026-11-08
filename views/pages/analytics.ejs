@@ -1,0 +1,51 @@
+<div class="dashboard-wrapper">
+    <div class="section-header">
+        <div>
+            <h2>Link Analytics</h2>
+            <p>Select a shortened URL to inspect click distributions and traffic metrics.</p>
+        </div>
+        <div class="link-selector-wrapper">
+            <select id="analyticsLinkSelect" class="cyber-select">
+                <option value="">-- Choose a Short Link --</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="analyticsContent" class="analytics-dashboard hidden">
+        <!-- Analytics Overview Cards -->
+        <div class="stats-grid">
+            <div class="stat-card glass-card">
+                <div class="stat-info">
+                    <h3 id="analTotalClicks" class="stat-number">0</h3>
+                    <p class="stat-label">Total Clicks</p>
+                </div>
+            </div>
+            <div class="stat-card glass-card">
+                <div class="stat-info">
+                    <h3 id="analFirstClick" class="stat-number-sm">N/A</h3>
+                    <p class="stat-label">First Click</p>
+                </div>
+            </div>
+            <div class="stat-card glass-card">
+                <div class="stat-info">
+                    <h3 id="analLatestClick" class="stat-number-sm">N/A</h3>
+                    <p class="stat-label">Latest Click Activity</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div class="chart-container glass-card">
+            <h3 class="chart-title">Daily Click Statistics</h3>
+            <div class="canvas-wrapper">
+                <canvas id="clicksChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty Analytics State -->
+    <div id="analyticsEmptyState" class="empty-state glass-card">
+        <h3>No Link Selected</h3>
+        <p>Please select a short link from the dropdown above to view real-time engagement data.</p>
+    </div>
+</div>

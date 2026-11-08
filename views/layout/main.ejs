@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= typeof title !== 'undefined' ? title : 'Shortify // Modern URL Shortener' %></title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/stylesheets/style.css">
+    <link rel="stylesheet" href="/stylesheets/dashboard.css">
+    <link rel="stylesheet" href="/stylesheets/responsive.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <%- include('../partials/navbar') %>
+        
+        <main class="main-content">
+            <%- include('../partials/alert') %>
+            <%- body %>
+        </main>
+
+        <%- include('../partials/footer') %>
+    </div>
+
+    <!-- Global Frontend JS App -->
+    <script src="/scripts/app.js"></script>
+    <% if (typeof script !== 'undefined') { %>
+        <% (Array.isArray(script) ? script : [script]).forEach(scriptPath => { %>
+            <script src="/scripts/<%= scriptPath %>"></script>
+        <% }); %>
+    <% } %>
+</body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "f253ad": {
+    "shortCode": "f253ad",
+    "longUrl": "https://www.example.com/products/electronics/gaming/laptops?category=gaming&brand=lenovo&processor=amd-ryzen-7&ram=16gb&storage=512gb-ssd&graphics=rtx-4060&sort=price-low-to-high&page=2&limit=20",
+    "originalUrl": "https://www.example.com/products/electronics/gaming/laptops?category=gaming&brand=lenovo&processor=amd-ryzen-7&ram=16gb&storage=512gb-ssd&graphics=rtx-4060&sort=price-low-to-high&page=2&limit=20",
+    "createdAt": "2026-11-08T08:00:47.310Z",
+    "clicks": 1,
+    "lastClicked": "2026-11-08T08:00:55.425Z",
+    "firstClicked": "2026-11-08T08:00:55.425Z",
+    "clickHistory": [
+      "2026-11-08T08:00:55.425Z"
+    ]
+  },
+  "98e5fd": {
+    "shortCode": "98e5fd",
+    "longUrl": "https://docs-cybersec.thalesgroup.com/bundle/on-premises-knowledgebase-reference-guide/page/abnormally_long_url.htm",
+    "originalUrl": "https://docs-cybersec.thalesgroup.com/bundle/on-premises-knowledgebase-reference-guide/page/abnormally_long_url.htm",
+    "createdAt": "2026-11-08T08:01:48.141Z",
+    "clicks": 1,
+    "lastClicked": "2026-11-08T08:01:55.571Z",
+    "firstClicked": "2026-11-08T08:01:55.571Z",
+    "clickHistory": [
+      "2026-11-08T08:01:55.571Z"
+    ]
+  },
+  "c940a3": {
+    "shortCode": "c940a3",
+    "longUrl": "https://gemini.google.com/app/c6989576b46a9bab",
+    "originalUrl": "https://gemini.google.com/app/c6989576b46a9bab",
+    "createdAt": "2026-11-08T08:06:58.040Z",
+    "clicks": 1,
+    "lastClicked": "2026-11-08T08:07:05.403Z",
+    "firstClicked": "2026-11-08T08:07:05.403Z",
+    "clickHistory": [
+      "2026-11-08T08:07:05.403Z"
+    ]
+  }
+}

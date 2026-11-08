@@ -1,0 +1,138 @@
+<div class="dashboard-wrapper">
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="hero-content">
+            <h1 class="hero-title">Shorten Links. Track Every Click.</h1>
+            <p class="hero-subtitle">Turn long URLs into clean, shareable links and understand how people interact with them.</p>
+            
+            <form id="urlForm" class="shorten-form">
+                <div class="input-wrapper">
+                    <svg class="input-icon" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+                    <input type="url" id="longUrlInput" placeholder="Paste your long URL here (e.g., https://example.com/very-long-path)..." required autocomplete="off">
+                </div>
+                <button type="submit" id="shortenBtn" class="btn btn-primary">
+                    <span class="btn-text">Shorten URL</span>
+                    <span class="spinner hidden"></span>
+                </button>
+            </form>
+            <div id="formError" class="form-error hidden"></div>
+        </div>
+
+        <!-- Generated URL Result Card (Hidden by default) -->
+        <div id="resultCard" class="result-card hidden glass-card">
+            <div class="result-header">
+                <span class="success-badge">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="3" fill="none"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Link Generated Successfully
+                </span>
+                <span id="resultDate" class="result-date"></span>
+            </div>
+            <div class="result-body">
+                <div class="url-row">
+                    <span class="url-label">Original:</span>
+                    <a id="resOriginalUrl" href="#" target="_blank" rel="noopener" class="url-trunc"></a>
+                </div>
+                <div class="url-row short-url-row">
+                    <span class="url-label">Shortify:</span>
+                    <input type="text" id="resShortUrl" readonly class="short-input">
+                </div>
+            </div>
+            <div class="result-actions">
+                <button id="copyResultBtn" class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    Copy URL
+                </button>
+                <a id="openResultBtn" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    Open Link
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Statistics Overview Cards -->
+    <section class="stats-section">
+        <div class="stats-grid">
+            <div class="stat-card glass-card">
+                <div class="stat-icon-wrapper purple-bg">
+                    <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                </div>
+                <div class="stat-info">
+                    <h3 id="statTotalLinks" class="stat-number">0</h3>
+                    <p class="stat-label">Total Links Created</p>
+                </div>
+            </div>
+            <div class="stat-card glass-card">
+                <div class="stat-icon-wrapper blue-bg">
+                    <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </div>
+                <div class="stat-info">
+                    <h3 id="statTotalClicks" class="stat-number">0</h3>
+                    <p class="stat-label">Total Clicks</p>
+                </div>
+            </div>
+            <div class="stat-card glass-card">
+                <div class="stat-icon-wrapper green-bg">
+                    <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                </div>
+                <div class="stat-info">
+                    <h3 id="statAvgClicks" class="stat-number">0</h3>
+                    <p class="stat-label">Avg Clicks Per Link</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- My Links Section -->
+    <section id="links-section" class="links-section">
+        <div class="section-header">
+            <div>
+                <h2>My Links</h2>
+                <p>Manage, track, and monitor your shortened URLs.</p>
+            </div>
+            <div class="search-box">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="searchInput" placeholder="Search original or short URL...">
+            </div>
+        </div>
+
+        <div class="table-container glass-card">
+            <table class="links-table">
+                <thead>
+                    <tr>
+                        <th>Original URL</th>
+                        <th>Short URL</th>
+                        <th>Clicks</th>
+                        <th>Created Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="linksTableBody">
+                    <!-- Dynamic Rows Loaded Here -->
+                </tbody>
+            </table>
+            
+            <!-- Empty State -->
+            <div id="emptyState" class="empty-state hidden">
+                <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                <h3>No links found</h3>
+                <p>Generate your first short link using the form above to start tracking clicks.</p>
+            </div>
+
+            <!-- Loading Skeleton State -->
+            <div id="loadingSkeleton" class="skeleton-container">
+                <div class="skeleton-row"></div>
+                <div class="skeleton-row"></div>
+                <div class="skeleton-row"></div>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="paginationContainer" class="pagination-container">
+            <button id="prevPageBtn" class="btn btn-outline" disabled>Previous</button>
+            <span id="pageIndicator" class="page-indicator">Page 1 of 1</span>
+            <button id="nextPageBtn" class="btn btn-outline" disabled>Next</button>
+        </div>
+    </section>
+</div>
