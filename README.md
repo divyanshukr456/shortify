@@ -20,13 +20,13 @@ Shortify is a lightweight URL shortener built with Node.js, Express, and EJS. Cr
 
 1. Create a Neon Postgres project and copy its connection string from the Neon dashboard's **Connect** dialog.
 
-2. Set the connection string in the `DATABASE_URL` environment variable. In Vercel, add `DATABASE_URL` under **Project Settings → Environment Variables** for each environment you deploy, then redeploy. Keep the connection string private.
+2. Set the connection string in the `DATABASE_URL` environment variable. For local development, add it to `.env`:
 
-   For local development in PowerShell:
-
-   ```powershell
-   $env:DATABASE_URL = "your-neon-connection-string"
+   ```env
+   DATABASE_URL=your-neon-connection-string
    ```
+
+   The server loads this file automatically. In Vercel, add `DATABASE_URL` under **Project Settings → Environment Variables** for each environment you deploy, then redeploy. Keep the connection string private.
 
 3. Install the dependencies:
 

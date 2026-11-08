@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const expressLayouts = require('express-ejs-layouts');
 const fs = require('fs');
@@ -324,6 +326,23 @@ app.delete('/api/urls/:shortCode', async (req, res) => {
 // ==========================================
 // 5. REDIRECTION DYNAMIC ROUTE
 // ==========================================
+app.get('/test-db', async (req, res) => {
+    try {
+        const [result] = await getSql()`SELECT NOW() AS current_time`;
+        res.json({
+            success: true,
+            message: 'Neon PostgreSQL connected successfully!',
+            time: result.current_time
+        });
+    } catch (error) {
+        console.error('Database connection test failed:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Database connection failed'
+        });
+    }
+});
+
 app.get('/:shortCode', async (req, res) => {
     const { shortCode } = req.params;
     await initializeDatabase();
